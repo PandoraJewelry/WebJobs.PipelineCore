@@ -59,15 +59,38 @@ namespace Pandora.Azure.WebJobs.PipelineCore.Tests
 
             await pipeline.CompleteProcessingMessageAsync(message, null, token.Token);
         }
+        #endregion
+
+        #region add
         [TestMethod]
         [ExpectedException(typeof(ArgumentNullException))]
-        public void AddNullFunction()
+        public void AddNullFunction1()
         {
             var pipeline = new PipelineProcessor(new OnMessageOptions());
+            Type stage = null;
 
-            pipeline.Add(null);
+            pipeline.Add(stage);
         }
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentNullException))]
+        public void AddNullFunction2()
+        {
+            var pipeline = new PipelineProcessor(new OnMessageOptions());
+            Func<IPipelineContext, Func<Task>, CancellationToken, Task> stage = null;
+
+            pipeline.Add(stage);
+        }
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentException))]
+        public void AddNotMessageProcessor()
+        {
+            var pipeline = new PipelineProcessor(new OnMessageOptions());
+            Type stage = typeof(string);
+
+            pipeline.Add(stage);
+        } 
         #endregion
+
 
         #region exceptions
         [TestMethod]

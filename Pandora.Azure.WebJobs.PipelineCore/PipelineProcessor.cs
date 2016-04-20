@@ -32,9 +32,20 @@ namespace Pandora.Azure.WebJobs.PipelineCore
         #endregion
 
         #region add
-        public void Add<T>() where T : IMessageProcessor
+        public void Add<TStage>() where TStage : IMessageProcessor
         {
-            _stages.Add(typeof(T));
+            _stages.Add(typeof(TStage));
+        }
+        public void Add(Type stage)
+        {
+            if (stage == null)
+                throw new ArgumentNullException(nameof(stage));
+
+            var imp = typeof(IMessageProcessor);
+            if (!stage.GetInterfaces().Contains(imp))
+                throw new ArgumentException(nameof(stage));
+
+            _stages.Add(stage);
         }
         public void Add(Func<IPipelineContext, Func<Task>, CancellationToken, Task> stage)
         {
