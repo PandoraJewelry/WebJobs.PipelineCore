@@ -434,6 +434,69 @@ namespace Pandora.Azure.WebJobs.PipelineCore.Tests
         }
         #endregion
 
+        #region threads
+        [TestMethod]
+        public async Task ContextsDontMixMessages1()
+        {
+            var pipeline = new PipelineProcessor(new OnMessageOptions());
+            var id1 = Guid.NewGuid().ToString();
+            var id2 = Guid.NewGuid().ToString();
+            var message1 = new BrokeredMessage() { MessageId = id1 };
+            var message2 = new BrokeredMessage() { MessageId = id2 };
+            var token1 = new CancellationTokenSource();
+            var token2 = new CancellationTokenSource();
+            var funcresult = new FunctionResult(true);
+
+            pipeline.Add(async (ctx, next, cancel) =>
+            {
+                ctx.Enviorment["id"] = ctx.Message.MessageId;
+                await next();
+                ctx.Message.MessageId = ctx.Enviorment["id"] as string;
+            });
+
+            var result1 = await pipeline.BeginProcessingMessageAsync(message1, token1.Token);
+            var result2 = await pipeline.BeginProcessingMessageAsync(message2, token1.Token);
+
+            await pipeline.CompleteProcessingMessageAsync(message1, funcresult, token1.Token);
+            await pipeline.CompleteProcessingMessageAsync(message2, funcresult, token2.Token);
+
+            Assert.IsTrue(result1);
+            Assert.IsTrue(result2);
+            Assert.AreEqual(id1, message1.MessageId);
+            Assert.AreEqual(id2, message2.MessageId);
+        }
+        [TestMethod]
+        public async Task ContextsDontMixMessages2()
+        {
+            var pipeline = new PipelineProcessor(new OnMessageOptions());
+            var id1 = Guid.NewGuid().ToString();
+            var id2 = Guid.NewGuid().ToString();
+            var message1 = new BrokeredMessage() { MessageId = id1 };
+            var message2 = new BrokeredMessage() { MessageId = id2 };
+            var token1 = new CancellationTokenSource();
+            var token2 = new CancellationTokenSource();
+            var funcresult = new FunctionResult(true);
+
+            pipeline.Add(async (ctx, next, cancel) =>
+            {
+                ctx.Enviorment["id"] = ctx.Message.MessageId;
+                await next();
+                ctx.Message.MessageId = ctx.Enviorment["id"] as string;
+            });
+
+            var result1 = await pipeline.BeginProcessingMessageAsync(message1, token1.Token);
+            var result2 = await pipeline.BeginProcessingMessageAsync(message2, token1.Token);
+
+            await pipeline.CompleteProcessingMessageAsync(message2, funcresult, token2.Token);
+            await pipeline.CompleteProcessingMessageAsync(message1, funcresult, token1.Token);            
+
+            Assert.IsTrue(result1);
+            Assert.IsTrue(result2);
+            Assert.AreEqual(id1, message1.MessageId);
+            Assert.AreEqual(id2, message2.MessageId);
+        }
+        #endregion
+
     }
 }
 
