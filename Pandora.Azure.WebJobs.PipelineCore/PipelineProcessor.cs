@@ -1,4 +1,7 @@
-﻿using Microsoft.Azure.WebJobs.Host.Executors;
+﻿// Copyright (c) PandoraJewelry. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+
+using Microsoft.Azure.WebJobs.Host.Executors;
 using Microsoft.ServiceBus.Messaging;
 using System;
 using System.Collections.Generic;
@@ -52,42 +55,21 @@ namespace Pandora.Azure.WebJobs.PipelineCore
             {
                 var context = new PipelineContext() { Message = message };
                 message.Properties[Consts.PipelineContext] = context;
-                await context.TriggerRan.WaitAsync();
                 await context.PipelineToTrigger.WaitAsync();
 
-                Func<Task> first = async () => await InnerMostStage(context);
-
-                foreach (var t in _stages.Reverse<object>())
-                {
-                    var next = first;
-                    if (t is Type)
-                    {
-                        var f = Activator.CreateInstance((Type)t) as IMessageProcessor;
-                        first = async () =>
-                        {
-                            await f.Invoke(context, next, cancellationToken);
-                        };
-                    }
-                    else
-                    {
-                        var f = (Func<IPipelineContext, Func<Task>, CancellationToken, Task>)t;
-                        first = async () =>
-                        {
-                            await f(context, next, cancellationToken);
-                        };
-                    }
-                }
-                Func<Task> outside = async () => await OutterMostStage(context, first);
-
+                Func<Task> inside = async () => await InnerMostStage(context);
+                Func<Task> pipeline = ConstructPipeline(inside, context, cancellationToken);
+                Func<Task> outside = async () => await OuterMostStage(context, pipeline);
 
                 var t1 = context.PipelineToTrigger.WaitAsync();
                 var t2 = outside();
 
                 await Task.WhenAny(t1, t2);
 
+                if (context.IsFaulted)
+                    throw context.Exception;
 
                 return t1.Status == TaskStatus.RanToCompletion;
-
             }
             else
                 return true;
@@ -113,6 +95,9 @@ namespace Pandora.Azure.WebJobs.PipelineCore
             context.Result = result;
             context.TriggerRan.Release();
             await context.TriggerToPipeline.WaitAsync();
+
+            if (context.IsFaulted)
+                throw context.Exception;
         }
         #endregion
 
@@ -140,19 +125,52 @@ namespace Pandora.Azure.WebJobs.PipelineCore
             await context.TriggerRan.WaitAsync();
             _trace.TraceEvent(TraceEventType.Verbose, 5, "Pipeline - Continuing - {0}", context.Message.MessageId);
         }
-        internal async Task OutterMostStage(PipelineContext context, Func<Task> pipeline)
+        internal async Task OuterMostStage(PipelineContext context, Func<Task> pipeline)
         {
             _trace.TraceEvent(TraceEventType.Verbose, 1, "Pipeline - Starting - {0}", context.Message.MessageId);
+
+            await context.TriggerRan.WaitAsync();
             await context.TriggerToPipeline.WaitAsync();
 
             try
             {
                 await pipeline();
             }
+            catch (Exception ex)
+            {
+                context.IsFaulted = true;
+                context.Exception = ex;
+            }
             finally
             {
+                context.TriggerRan.Release();
                 context.TriggerToPipeline.Release();
             }
+        }
+        internal Func<Task> ConstructPipeline(Func<Task> innerMostTask, PipelineContext context, CancellationToken cancellationToken)
+        {
+            foreach (var t in _stages.Reverse<object>())
+            {
+                var next = innerMostTask;
+                if (t is Type)
+                {
+                    var f = Activator.CreateInstance((Type)t) as IMessageProcessor;
+                    innerMostTask = async () =>
+                    {
+                        await f.Invoke(context, next, cancellationToken);
+                    };
+                }
+                else
+                {
+                    var f = (Func<IPipelineContext, Func<Task>, CancellationToken, Task>)t;
+                    innerMostTask = async () =>
+                    {
+                        await f(context, next, cancellationToken);
+                    };
+                }
+            }
+
+            return innerMostTask;
         }
         #endregion
     }
