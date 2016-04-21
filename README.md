@@ -31,6 +31,15 @@ So when both these patterns are composed, the flow control should look something
         PostProcessWork() n->1
     }
 
+##Tracing
+Tracing can be turned on by adding in
+
+	<switches>
+	  <add name="Pandora.Azure.WebJobs.PipelineCore" value="Verbose" />
+	</switches>
+	<sources>
+	  <source name="Pandora.Azure.WebJobs.PipelineCore" />
+	</sources>
 
 ## Installation
 You can obtain it [through Nuget](https://www.nuget.org/packages/Pandora.Azure.WebJobs.PipelineCore/) with:
