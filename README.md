@@ -42,8 +42,11 @@ Tracing can be turned on by adding in
 	</sources>
 
 ## Installation
-You can obtain it [through Nuget](https://www.nuget.org/packages/Pandora.Azure.WebJobs.PipelineCore/) with:
+You can obtain it [through Nuget][0] with:
 
     Install-Package Pandora.Azure.WebJobs.PipelineCore
 
 Or **clone** this repo and reference it.
+
+[\\]: Refrences
+[0]: https://www.nuget.org/packages/Pandora.Azure.WebJobs.PipelineCore
